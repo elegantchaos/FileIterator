@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+# This script invokes the Swift Package Manager to generate a github
+# action workflow file for the project.
+export RESOLVE_ACTION_PLUGINS=true
+swift package plugin --allow-writing-to-package-directory generate-workflow

@@ -1,0 +1,15 @@
+{
+  "originHash" : "c82cb92d574291b773a43668629eba0176fcdfad6a55ff1ec69977adab6e7100",
+  "pins" : [
+    {
+      "identity" : "chaostesting",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/elegantchaos/ChaosTesting.git",
+      "state" : {
+        "revision" : "a7523f7678b8a6b5b8edccb05330f32317413979",
+        "version" : "1.0.1"
+      }
+    }
+  ],
+  "version" : 3
+}
