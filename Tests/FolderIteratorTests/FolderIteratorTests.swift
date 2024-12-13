@@ -8,9 +8,23 @@ import FolderIterator
 import Testing
 import XCTest
 
-@Test func name() async throws {
+let testTree = try! TestTree(
+  .dir(
+    "project",
+    [
+      .file("real1.swift"),
+      .file("real2.swift"),
+      .file(".hidden.swift"),
+      .dir(".build", [.file("generated.swift")]),
+      .link("link.swift", ".hidden.swift"),
+      .rellink("rellink.swift", ".hidden.swift"),
+    ]
+  )
+)
+
+@Test func explicitFileList() async throws {
   let tree = try TestTree(
-    .directory(
+    .dir(
       "project",
       [
         .file("file1", "contents"),
@@ -20,91 +34,29 @@ import XCTest
   )
 
   let result: [URL] = Array(FileIterator(urls: tree.files, followSymlinks: false))
-  let names = Set(result.map { $0.lastPathComponent })
+  let names = result.map { $0.lastPathComponent }
   #expect(result.count == 2)
-  #expect(names.contains("file1"))
-  #expect(names.contains("file2"))
+  #expect(names[0] == "file1")
+  #expect(names[1] == "file2")
 }
 
-// @Test func basicFileList() async throws {
-//   let folder = try Folder(path: "/tmp")
-//   let files = folder.files
-//   #expect(files.count) == 3
-//   #expect(files[0].name) == "file1.txt"
-//   #expect(files[1].name) == "file2.txt"
-//   #expect(files[2].name) == "file3.txt"
-// }
+@Test func noFollowSymlinks() async throws {
+  let result: [URL] = Array(FileIterator(urls: [testTree.url], followSymlinks: false))
+  #expect(result.count == 2)
+  #expect(result.contains { $0.path.hasSuffix("project/real1.swift") })
+  #expect(result.contains { $0.path.hasSuffix("project/real2.swift") })
+}
 
-// final class IgnoreFileTests: XCTestCase {
-//   var testTreeURL: URL?
+@Test func followSymlinks() async throws {
+  let result: [URL] = Array(FileIterator(urls: [testTree.url], followSymlinks: true))
+  print(result.map { $0.path }.joined(separator: "\n"))
 
-//   override func tearDown() {
-//     // Clean up any test tree after each test.
-//     if let testTreeURL {
-//       // try? FileManager.default.removeItem(at: testTreeURL)
-//     }
-//   }
-
-// }
-
-// extension URL {
-//   /// Assuming this is a file URL, resolves all symlinks in the path.
-//   ///
-//   /// - Note: We need this because `URL.resolvingSymlinksInPath()` not only resolves symlinks but also standardizes the
-//   ///   path by stripping away `private` prefixes. Since sourcekitd is not performing this standardization, using
-//   ///   `resolvingSymlinksInPath` can lead to slightly mismatched URLs between the sourcekit-lsp response and the test
-//   ///   assertion.
-//   fileprivate var realpath: URL {
-//     #if canImport(Darwin)
-//       return self.path.withCString { path in
-//         guard let realpath = Darwin.realpath(path, nil) else {
-//           return self
-//         }
-//         let result = URL(fileURLWithPath: String(cString: realpath))
-//         free(realpath)
-//         return result
-//       }
-//     #else
-//       // Non-Darwin platforms don't have the `/private` stripping issue, so we can just use `self.resolvingSymlinksInPath`
-//       // here.
-//       return self.resolvingSymlinksInPath()
-//     #endif
-//   }
-// }
-
-// final class FileIteratorTests: XCTestCase {
-//   private var tmpdir: URL!
-
-//   override func setUpWithError() throws {
-//     tmpdir = try FileManager.default.url(
-//       for: .itemReplacementDirectory,
-//       in: .userDomainMask,
-//       appropriateFor: FileManager.default.temporaryDirectory,
-//       create: true
-//     ).realpath
-
-//     // Create a simple file tree used by the tests below.
-//     try touch("project/real1.swift")
-//     try touch("project/real2.swift")
-//     try touch("project/.hidden.swift")
-//     try touch("project/.build/generated.swift")
-//     try symlink("project/link.swift", to: "project/.hidden.swift")
-//     try symlink("project/rellink.swift", relativeTo: ".hidden.swift")
-//   }
-
-//   override func tearDownWithError() throws {
-//     try FileManager.default.removeItem(at: tmpdir)
-//   }
-
-//   func testNoFollowSymlinks() throws {
-//     #if os(Windows) && compiler(<5.10)
-//       try XCTSkipIf(true, "Foundation does not follow symlinks on Windows")
-//     #endif
-//     let seen = allFilesSeen(iteratingOver: [tmpdir], followSymlinks: false)
-//     XCTAssertEqual(seen.count, 2)
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/real1.swift") })
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/real2.swift") })
-//   }
+  #expect(result.count == 3)
+  #expect(result.contains { $0.path.hasSuffix("project/real1.swift") })
+  #expect(result.contains { $0.path.hasSuffix("project/real2.swift") })
+  // Hidden but found through the visible symlink project/link.swift
+  #expect(result.contains { $0.path.hasSuffix("project/.hidden.swift") })
+}
 
 //   func testFollowSymlinks() throws {
 //     #if os(Windows) && compiler(<5.10)

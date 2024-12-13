@@ -48,6 +48,7 @@ struct NestedIterator: Sequence, IteratorProtocol {
 /// traversed recursively, and we check for files with a ".swift" extension.
 public struct FileIterator: Sequence, IteratorProtocol {
   private var it: NestedIterator
+  private var visited = Set<URL>()
 
   /// Create a new file iterator over the given list of file URLs.
   ///
@@ -67,7 +68,14 @@ public struct FileIterator: Sequence, IteratorProtocol {
   /// Iterate through the "paths" list, and emit the file paths in it. If we encounter a directory,
   /// recurse through it and emit .swift file paths.
   public mutating func next() -> URL? {
-    return it.next()
+    repeat {
+      guard let url = it.next() else {
+        return nil
+      }
+      if visited.insert(url.standardizedFileURL).inserted {
+        return url
+      }
+    } while true
   }
 }
 
@@ -90,7 +98,9 @@ struct DirectoryEnumerator: Sequence, IteratorProtocol {
   }
 
   mutating func next() -> URL? {
-    return iterator.nextObject() as? URL
+    let url = iterator.nextObject() as? URL
+    print("DirectoryEnumerator.next() -> \(url?.path ?? "nil")")
+    return url
   }
 }
 
