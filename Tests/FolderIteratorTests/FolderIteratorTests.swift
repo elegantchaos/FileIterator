@@ -33,7 +33,8 @@ let testTree = try! TestTree(
     )
   )
 
-  let result: [URL] = Array(FileIterator(urls: tree.files, followSymlinks: false))
+  let result: [URL] = Array(
+    FileIterator(urls: tree.files, followSymlinks: false, skipHidden: true))
   let names = result.map { $0.lastPathComponent }
   #expect(result.count == 2)
   #expect(names[0] == "file1")
@@ -41,14 +42,17 @@ let testTree = try! TestTree(
 }
 
 @Test func noFollowSymlinks() async throws {
-  let result: [URL] = Array(FileIterator(urls: [testTree.url], followSymlinks: false))
+  let result: [URL] = Array(
+    FileIterator(urls: [testTree.url], followSymlinks: false, skipHidden: true))
+  print(result.map { $0.path }.joined(separator: "\n"))
   #expect(result.count == 2)
   #expect(result.contains { $0.path.hasSuffix("project/real1.swift") })
   #expect(result.contains { $0.path.hasSuffix("project/real2.swift") })
 }
 
 @Test func followSymlinks() async throws {
-  let result: [URL] = Array(FileIterator(urls: [testTree.url], followSymlinks: true))
+  let result: [URL] = Array(
+    FileIterator(urls: [testTree.url], followSymlinks: true, skipHidden: true))
   print(result.map { $0.path }.joined(separator: "\n"))
 
   #expect(result.count == 3)
