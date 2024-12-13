@@ -34,7 +34,7 @@ let testTree = try! TestTree(
   )
 
   let result: [URL] = Array(
-    FileIterator(urls: tree.files, followSymlinks: false, skipHidden: true))
+    FileIterator(urls: tree.files, followSymlinks: false))
   let names = result.map { $0.lastPathComponent }
   #expect(result.count == 2)
   #expect(names[0] == "file1")
@@ -43,8 +43,8 @@ let testTree = try! TestTree(
 
 @Test func noFollowSymlinks() async throws {
   let result: [URL] = Array(
-    FileIterator(urls: [testTree.url], followSymlinks: false, skipHidden: true))
-  print(result.map { $0.path }.joined(separator: "\n"))
+    FileIterator(urls: [testTree.url], followSymlinks: false))
+  // print(result.map { $0.path }.joined(separator: "\n"))
   #expect(result.count == 2)
   #expect(result.contains { $0.path.hasSuffix("project/real1.swift") })
   #expect(result.contains { $0.path.hasSuffix("project/real2.swift") })
@@ -52,8 +52,7 @@ let testTree = try! TestTree(
 
 @Test func followSymlinks() async throws {
   let result: [URL] = Array(
-    FileIterator(urls: [testTree.url], followSymlinks: true, skipHidden: true))
-  print(result.map { $0.path }.joined(separator: "\n"))
+    FileIterator(urls: [testTree.url], followSymlinks: true))
 
   #expect(result.count == 3)
   #expect(result.contains { $0.path.hasSuffix("project/real1.swift") })
@@ -62,123 +61,85 @@ let testTree = try! TestTree(
   #expect(result.contains { $0.path.hasSuffix("project/.hidden.swift") })
 }
 
-//   func testFollowSymlinks() throws {
-//     #if os(Windows) && compiler(<5.10)
-//       try XCTSkipIf(true, "Foundation does not follow symlinks on Windows")
-//     #endif
-//     let seen = allFilesSeen(iteratingOver: [tmpdir], followSymlinks: true)
-//     XCTAssertEqual(seen.count, 3)
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/real1.swift") })
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/real2.swift") })
-//     // Hidden but found through the visible symlink project/link.swift
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/.hidden.swift") })
-//   }
+@Test func traversesHiddenFilesIfExplicitlySpecified() async throws {
+  let urls = [
+    testTree.url.appendingPathComponent("project/.build"),
+    testTree.url.appendingPathComponent("project/.hidden.swift"),
+  ]
+  let result: [URL] = Array(
+    FileIterator(urls: urls, followSymlinks: false))
 
-//   func testTraversesHiddenFilesIfExplicitlySpecified() throws {
-//     #if os(Windows) && compiler(<5.10)
-//       try XCTSkipIf(true, "Foundation does not follow symlinks on Windows")
-//     #endif
-//     let seen = allFilesSeen(
-//       iteratingOver: [tmpURL("project/.build"), tmpURL("project/.hidden.swift")],
-//       followSymlinks: false
-//     )
-//     XCTAssertEqual(seen.count, 2)
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/.build/generated.swift") })
-//     XCTAssertTrue(seen.contains { $0.path.hasSuffix("project/.hidden.swift") })
-//   }
+  #expect(result.count == 2)
+  #expect(result.contains { $0.path.hasSuffix("project/.hidden.swift") })
+  #expect(result.contains { $0.path.hasSuffix("project/.build/generated.swift") })
+}
 
-//   func testDoesNotFollowSymlinksIfFollowSymlinksIsFalseEvenIfExplicitlySpecified() {
-//     // Symlinks are not traversed even if `followSymlinks` is false even if they are explicitly
-//     // passed to the iterator. This is meant to avoid situations where a symlink could be hidden by
-//     // shell expansion; for example, if the user writes `swift-format --no-follow-symlinks *`, if
-//     // the current directory contains a symlink, they would probably *not* expect it to be followed.
-//     let seen = allFilesSeen(
-//       iteratingOver: [tmpURL("project/link.swift"), tmpURL("project/rellink.swift")],
-//       followSymlinks: false
-//     )
-//     XCTAssertTrue(seen.isEmpty)
-//   }
+@Test func doesNotFollowSymlinksIfFollowSymlinksIsFalseEvenIfExplicitlySpecified() async throws {
+  //     // Symlinks are not traversed even if `followSymlinks` is false even if they are explicitly
+  //     // passed to the iterator. This is meant to avoid situations where a symlink could be hidden by
+  //     // shell expansion; for example, if the user writes `swift-format --no-follow-symlinks *`, if
+  //     // the current directory contains a symlink, they would probably *not* expect it to be followed.
+  let urls = [
+    testTree.url.appendingPathComponent("project/link.swift"),
+    testTree.url.appendingPathComponent("project/rellink.swift"),
+  ]
+  let result: [URL] = Array(
+    FileIterator(urls: urls, followSymlinks: false))
 
-//   func testDoesNotTrimFirstCharacterOfPathIfRunningInRoot() throws {
-//     // Find the root of tmpdir. On Unix systems, this is always `/`. On Windows it is the drive.
-//     var root = tmpdir!
-//     while !root.isRoot {
-//       root.deleteLastPathComponent()
-//     }
-//     var rootPath = root.path
-//     #if os(Windows) && compiler(<6.1)
-//       if rootPath.hasPrefix("/") {
-//         // Canonicalize /C: to C:
-//         rootPath = String(rootPath.dropFirst())
-//       }
-//     #endif
-//     // Make sure that we don't drop the beginning of the path if we are running in root.
-//     // https://github.com/swiftlang/swift-format/issues/862
-//     let seen = allFilesSeen(iteratingOver: [tmpdir], followSymlinks: false, workingDirectory: root)
-//       .map(\.relativePath)
-//     XCTAssertTrue(
-//       seen.allSatisfy { $0.hasPrefix(rootPath) },
-//       "\(seen) does not contain root directory '\(rootPath)'")
-//   }
+  #expect(result.isEmpty)
+}
 
-//   func testShowsRelativePaths() throws {
-//     // Make sure that we still show the relative path if using them.
-//     // https://github.com/swiftlang/swift-format/issues/862
-//     let seen = allFilesSeen(
-//       iteratingOver: [tmpdir], followSymlinks: false, workingDirectory: tmpdir)
-//     XCTAssertEqual(Set(seen.map(\.relativePath)), ["project/real1.swift", "project/real2.swift"])
-//   }
-// }
+@Test func testDoesNotTrimFirstCharacterOfPathIfRunningInRoot() async throws {
+  // Find the root of tmpdir. On Unix systems, this is always `/`. On Windows it is the drive.
+  var root = testTree.url
+  while !root.isRoot {
+    root.deleteLastPathComponent()
+  }
+  var rootPath = root.path
+  #if os(Windows) && compiler(<6.1)
+    if rootPath.hasPrefix("/") {
+      // Canonicalize /C: to C:
+      rootPath = String(rootPath.dropFirst())
+    }
+  #endif
+  // Make sure that we don't drop the beginning of the path if we are running in root.
+  //
+  let result: [URL] = Array(
+    FileIterator(urls: [testTree.url], followSymlinks: false))
+  #expect(
+    result
+      .map(\.relativePath)
+      .allSatisfy { $0.hasPrefix(rootPath) }
+  )
+}
 
-// extension FileIteratorTests {
-//   /// Returns a URL to a file or directory in the test's temporary space.
-//   private func tmpURL(_ path: String) -> URL {
-//     return tmpdir.appendingPathComponent(path, isDirectory: false)
-//   }
+@Test func showsRelativePaths() async throws {
+  // Make sure that we still show the relative path if using them.
+  //
+  let result: [URL] = Array(
+    FileIterator(urls: [testTree.url], followSymlinks: false))
+  let relative = Set(
+    result
+      .map { $0.relativeTo(testTree.url) }
+      .map(\.relativePath)
+  )
 
-//   /// Create an empty file at the given path in the test's temporary space.
-//   private func touch(_ path: String) throws {
-//     let fileURL = tmpURL(path)
-//     try FileManager.default.createDirectory(
-//       at: fileURL.deletingLastPathComponent(),
-//       withIntermediateDirectories: true
-//     )
-//     struct FailedToCreateFileError: Error {
-//       let url: URL
-//     }
-//     if !FileManager.default.createFile(atPath: fileURL.path, contents: Data()) {
-//       throw FailedToCreateFileError(url: fileURL)
-//     }
-//   }
+  print(result.map { $0.path }.joined(separator: "\n"))
+  print(testTree.url)
+  print(result.map { $0.relativeTo(testTree.url).relativePath }.joined(separator: "\n"))
+  #expect(relative == ["project/real1.swift", "project/real2.swift"])
+}
 
-//   /// Create a absolute symlink between files or directories in the test's temporary space.
-//   private func symlink(_ source: String, to target: String) throws {
-//     try FileManager.default.createSymbolicLink(
-//       at: tmpURL(source),
-//       withDestinationURL: tmpURL(target)
-//     )
-//   }
-
-//   /// Create a relative symlink between files or directories in the test's temporary space.
-//   private func symlink(_ source: String, relativeTo target: String) throws {
-//     try FileManager.default.createSymbolicLink(
-//       atPath: tmpURL(source).path,
-//       withDestinationPath: target
-//     )
-//   }
-
-//   /// Computes the list of all files seen by using `FileIterator` to iterate over the given URLs.
-//   private func allFilesSeen(
-//     iteratingOver urls: [URL],
-//     followSymlinks: Bool,
-//     workingDirectory: URL = URL(fileURLWithPath: ".")
-//   ) -> [URL] {
-//     let iterator = FileIterator(
-//       urls: urls, followSymlinks: followSymlinks)
-//     var seen: [URL] = []
-//     for next in iterator {
-//       seen.append(next)
-//     }
-//     return seen
-//   }
-// }
+extension URL {
+  func relativeTo(_ other: URL) -> URL {
+    let s = standardizedFileURL
+    let relativePath: String
+    if !other.isRoot, s.path.hasPrefix(other.path) {
+      relativePath = String(
+        s.path.dropFirst(other.path.count).drop(while: { $0 == "/" || $0 == #"\"# }))
+    } else {
+      relativePath = s.path
+    }
+    return URL(fileURLWithPath: relativePath, relativeTo: other.standardizedFileURL)
+  }
+}

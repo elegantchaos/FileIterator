@@ -36,7 +36,7 @@ public struct FileIterator: Sequence, IteratorProtocol {
   ///
   /// The given URLs may be files or directories. If they are directories, the iterator will recurse
   /// into them.
-  public init(urls: [URL], followSymlinks: Bool, skipHidden: Bool) {
+  public init(urls: [URL], followSymlinks: Bool, skipHidden: Bool = true) {
     let context = IteratorContext(followSymlinks: followSymlinks, skipHidden: skipHidden)
     self.current = NestedIterator(urls: urls, context: context)
   }
@@ -67,7 +67,6 @@ struct DirectoryEnumerator: Sequence, IteratorProtocol {
       [.skipsSubdirectoryDescendants]
     if skipHidden {
       options.insert(.skipsHiddenFiles)
-      print(options)
     }
     self.iterator = FileManager.default.enumerator(
       at: url,
@@ -78,7 +77,6 @@ struct DirectoryEnumerator: Sequence, IteratorProtocol {
 
   mutating func next() -> URL? {
     let url = iterator.nextObject() as? URL
-    print("DirectoryEnumerator.next() -> \(url?.path ?? "nil")")
     return url
   }
 }
